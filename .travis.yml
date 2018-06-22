@@ -182,6 +182,34 @@ install:
     fi    
 
 
+  # - |
+  #   if [[ "${BITPRIM_RUN_CLANG_TIDY}" == "true" ]]; then
+  #     chmod +x .travis/install.sh
+  #     ./.travis/install.sh
+
+  #     # brew update || brew update
+  #     # brew outdated pyenv || brew upgrade pyenv
+  #     # brew install pyenv-virtualenv
+  #     # brew install cmake || true
+
+  #     # if which pyenv > /dev/null; then
+  #     #     eval "$(pyenv init -)"
+  #     # fi
+  #     # # if which pyenv > /dev/null; then
+  #     # #     eval "$(pyenv init -)"
+  #     # #     eval "$(pyenv virtualenv-init -)" 
+  #     # # fi
+
+  #     # pyenv install 2.7.10
+  #     # pyenv virtualenv 2.7.10 conan
+  #     # pyenv rehash
+  #     # pyenv activate conan      
+  #     # pip install conan_package_tools --upgrade
+  #     # pip install conan --upgrade
+  #     # conan user
+  #   fi
+
+
   ############################################################################
   # Install tools to check for code formatting errors (run on OS X only)
   ############################################################################
@@ -212,6 +240,12 @@ script:
 
   - |
     if [[ "${BITPRIM_RUN_CLANG_TIDY}" == "true" ]]; then
+      if which pyenv > /dev/null; then
+          eval "$(pyenv init -)"
+          eval "$(pyenv virtualenv-init -)"
+      fi
+      pyenv activate conan
+
       conan user
       conan remote add bitprim_temp https://api.bintray.com/conan/bitprim/bitprim
 
