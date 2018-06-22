@@ -269,7 +269,8 @@ script:
       # ls /usr/local/Cellar/llvm/4.0.1/share/clang/run-clang-tidy.py
 
       # /usr/local/Cellar/llvm/5.0.0/share/clang/run-clang-tidy.py -header-filter='.*' -checks='-*,modernize-use-override'
-      /usr/local/Cellar/llvm/5.0.0/share/clang/run-clang-tidy.py -header-filter='.*' -checks='*'
+      # /usr/local/Cellar/llvm/5.0.0/share/clang/run-clang-tidy.py -header-filter='.*' -checks='*'
+      /usr/local/Cellar/llvm/6.0.0/share/clang/run-clang-tidy.py -header-filter='.*' -checks='*'
 
       # Find non-ASCII characters in headers
       hpps=$(find include doc -name \*\.hpp)
