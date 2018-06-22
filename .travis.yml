@@ -22,6 +22,7 @@ branches:
   - master
   - dev
   - /^v\d+\.\d+\.\d+$/
+  - feature-static-analysis
   
 linux: &linux
    os: linux
@@ -121,15 +122,23 @@ matrix:
              BITPRIM_CI_CURRENCY=BTC
 
       # macOS, apple-Clang, libc++ -------------------------------------------------
-      - <<: *osx
-        osx_image: xcode9.1
-        env: CONAN_APPLE_CLANG_VERSIONS=9.1
-             BITPRIM_CI_CURRENCY=BCH
+      # - <<: *osx
+      #   osx_image: xcode9.1
+      #   env: CONAN_APPLE_CLANG_VERSIONS=9.1
+      #        BITPRIM_CI_CURRENCY=BCH
+
+      # - <<: *osx
+      #   osx_image: xcode9.1
+      #   env: CONAN_APPLE_CLANG_VERSIONS=9.1
+      #        BITPRIM_CI_CURRENCY=BTC
+
 
       - <<: *osx
-        osx_image: xcode9.1
-        env: CONAN_APPLE_CLANG_VERSIONS=9.1
-             BITPRIM_CI_CURRENCY=BTC
+        osx_image: xcode9
+        env: CONAN_APPLE_CLANG_VERSIONS=9.0
+             BITPRIM_RUN_TESTS=true
+             BITPRIM_CI_CURRENCY=BCH
+             BITPRIM_RUN_CLANG_TIDY=true
 
       - <<: *osx
         osx_image: xcode9
@@ -172,20 +181,70 @@ install:
       ./.travis/install.sh
     fi    
 
+
+  ############################################################################
+  # Install tools to check for code formatting errors (run on OS X only)
+  ############################################################################
+  - |
+    if [[ "${BITPRIM_RUN_CLANG_TIDY}" == "true" ]]; then
+      brew upgrade pcre || brew install pcre || exit 1
+      brew upgrade vera++ || brew install vera++ || exit 1
+      brew upgrade llvm --with-clang --with-clang-extra-tools || brew install llvm --with-clang --with-clang-extra-tools || exit 1
+      ls /usr/local/opt/llvm/bin | grep clang
+    fi
+
 script:
   - git fetch --unshallow || true
   - export BITPRIM_BUILD_NUMBER="$(git describe)"
   - echo "${BITPRIM_BUILD_NUMBER}"
 
   - |
-    if [[ "${PUSH_TO_REPOS}" == "true" ]]; then
-      chmod +x .travis/push_other_repo.sh
-      ./.travis/push_other_repo.sh
-    else
-      cd ${TRAVIS_BUILD_DIR}
-      chmod +x .travis/run.sh
-      ./.travis/run.sh
+    if [[ "${BITPRIM_RUN_CLANG_TIDY}" != "true" ]]; then
+      if [[ "${PUSH_TO_REPOS}" == "true" ]]; then
+        chmod +x .travis/push_other_repo.sh
+        ./.travis/push_other_repo.sh
+      else
+        cd ${TRAVIS_BUILD_DIR}
+        chmod +x .travis/run.sh
+        ./.travis/run.sh
+      fi  
     fi  
+
+  - |
+    if [[ "${BITPRIM_RUN_CLANG_TIDY}" == "true" ]]; then
+      conan user
+      conan remote add bitprim_temp https://api.bintray.com/conan/bitprim/bitprim
+
+
+      cd ${TRAVIS_BUILD_DIR}
+      mkdir build
+      cd build
+
+      conan install ..
+
+      # cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DENABLE_TESTS=OFF -DWITH_TESTS=OFF -DWITH_TOOLS=OFF -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_CXX_FLAGS="${CXX_FLAGS}" ${BOOST_OPTS}
+      # cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DENABLE_TESTS=OFF -DWITH_TESTS=OFF -DWITH_TOOLS=OFF -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+      cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DENABLE_TESTS=OFF -DWITH_TESTS=OFF -DWITH_TOOLS=OFF -DCMAKE_BUILD_TYPE=Release
+
+      export PATH=$PATH:/usr/local/opt/llvm/bin/
+      clang-tidy --version
+
+      # sudo find / -name "run-clang-tidy.py"
+      # ls /usr/local/Cellar/llvm/4.0.1/share/clang/run-clang-tidy.py
+
+      # /usr/local/Cellar/llvm/5.0.0/share/clang/run-clang-tidy.py -header-filter='.*' -checks='-*,modernize-use-override'
+      /usr/local/Cellar/llvm/5.0.0/share/clang/run-clang-tidy.py -header-filter='.*' -checks='*'
+
+      # Find non-ASCII characters in headers
+      hpps=$(find include doc -name \*\.hpp)
+      cpps=$(find test example -name \*\.cpp)
+      pcregrep --color='auto' -n "[\x80-\xFF]" ${hpps} ${cpps}
+      if [[ $? -ne 1 ]]; then exit 1; fi
+      # F001: Source files should not use the '\r' (CR) character
+      # L001: No trailing whitespace at the end of lines
+      # L002: Don't use tab characters
+      find include -name \*\.hpp | vera++ --rule F001 --rule L001 --rule L002 --error
+    fi
 
 notifications:
   email: false
